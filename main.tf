@@ -1,33 +1,57 @@
+provider "aws" {
+  version                     = "~> 2.67"
+  region                      = var.region
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  access_key                  = var.access_key
+  secret_key                  = var.secret_key
+}
+
+resource "aws_iam_account_password_policy" "strict" {
+  minimum_password_length        = 8
+  #require_lowercase_characters   = true
+  #require_numbers                = true
+  #require_uppercase_characters   = true
+  #require_symbols                = true
+  #allow_users_to_change_password = true
+  #password_reuse_prevention      = 24
+  max_password_age                = 3
+}
+
 module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
+  source = "./modules/vpc"
+}
 
-  name = "my-vpc"
-  cidr = "10.0.0.0/16"
+module "subnet"  {
+  source = "./modules/subnet"
+  vpc_id = module.vpc.vpc_id
+}
 
-  azs             = ["eu-west-2a", "eu-west-2b", "eu-west-2c"]
-  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+module "storage" {
+  source = "./modules/storage"
 
-  enable_nat_gateway = false
-  enable_vpn_gateway = true
+  acl = var.s3_acl
+  db_password = "supersecret"
+  db_username = "snyk"
+  environment = "dev"
+  private_subnet = [module.subnet.subnet_id]
+  vpc_id = module.vpc.vpc_id
+}
+
+module "instance" {
+  source                 = "git@github.com:terraform-aws-modules/terraform-aws-ec2-instance.git"
+  ami                    = var.ami
+  instance_type          = "t2.micro"
+  name                   = "example-server"
+  instance_count         = 1
+
+  vpc_security_group_ids = [module.vpc.vpc_sg_id]
+  subnet_id              = module.subnet.subnet_id
 
   tags = {
-    Terraform = "true"
-    Environment = "dev"
+    Terraform            = "true"
+    Environment          = "dev"
   }
 }
 
-resource "aws_security_group" "allow_ssh" {
-  name        = "allow_ssh"
-  description = "Allow ssh inbound traffic"
-  vpc_id      = module.vpc.vpc_id
-}
-
-resource "aws_security_group_rule" "ssh_inbound" {
-	cidr_blocks = [ "192.168.1.0/24" ]
-	security_group_id = aws_security_group.allow_ssh.id
-	protocol = "tcp"
-	from_port = 22
-	to_port = 22
-	type = "ingress"
-}
