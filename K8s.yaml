@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goof
+  namespace: goof
+spec:
+  selector:
+    matchLabels:
+      app: goof
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: goof
+    spec:
+      containers:
+        - name: goof
+          image: l0zcr0wth3r/goof:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3001
